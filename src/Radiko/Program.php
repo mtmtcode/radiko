@@ -9,6 +9,26 @@ class Program
     private $description;
 
     /**
+     * XML要素からオブジェクトを生成する
+     *
+     * @param SimpleXMLElement $elem prog要素
+     * @return Program
+     */
+    static public function createFromXml(\SimpleXMLElement $elem)
+    {
+        if ('prog' != $elem->getName()) {
+            throw InvalidArgumentException('prog要素以外が渡された');
+        }
+
+        $program = new self();
+        $program->setBeginTime(\DateTime::createFromFormat('YmdHis', $elem['ft']));
+        $program->setTitle($elem->title);
+        $program->setDuration($elem['dur']);
+        $program->setDescription($elem->desc);
+        return $program;
+    }
+
+    /**
      * 開始時刻をセットする
      *
      * @params DateTime $dt 番組開始時刻

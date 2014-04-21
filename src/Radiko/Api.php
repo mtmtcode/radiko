@@ -44,24 +44,49 @@ class Api
      * 指定した放送局の番組情報を取得する
      *
      * @param string $station_id 放送局ID
+     * @return array[string][Program] 日付毎の番組表
      */
-    public function getProgramsByStation($station_id)
+    public function getScheduleByStation($station_id)
     {
         $res = new \SimpleXMLElement('http://radiko.jp/v2/api/program/station/weekly?station_id=' . $station_id, 0, true);
 
-        $station = $res->stations->station;
-        $daily_programs = [];
+        $station_id = (string)$res->stations->station;
 
-        foreach ($station->scd->progs as $progs) {
+        foreach ($res->stations->station->scd->progs as $progs) {
+            $date = \DateTime::createFromFormat('Ymd', (string)$progs->date);
+            $schedule = new Schedule($station_id, $date);
             foreach ($progs->prog as $prog) {
-                $program = new Program();
-                $program->setBeginTime(\DateTime::createFromFormat('YmdHis', $prog['ft']));
-                $program->setTitle($prog->title);
-                $program->setDuration($prog['dur']);
-                $program->setDescription($prog->desc);
-                $daily_programs[(string)$progs->date][] = $program;
+                $schedule->add(Program::createFromXml($prog));
             }
+            $result[$date->format('Ymd')] = $schedule;
         }
-        return $daily_programs;
+        return $result;
+    }
+
+    /**
+     * 日を指定して各放送局の番組表を取得する
+     *
+     * @param string $when "today"または"tommorow"
+     * @return array[string][Program] 放送局毎の指定日の番組表
+     */
+    public function getSchedule($when)
+    {
+        if ('today' != $when and 'tomorrow' != $when) {
+            throw new InvalidArgumentException('引数に"today"もしくは"tomorrow"が指定されていない');
+        }
+
+        $res = new \SimpleXMLElement("http://radiko.jp/v2/api/program/{$when}?area_id={$this->areaCode}", 0, true);
+
+        $result = [];
+        foreach ($res->stations->station as $station) {
+            $station_id = (string)$station['id'];
+            $date = \DateTime::createFromFormat('Ymd', (string)$station->scd->progs->date);
+            $schedule = new Schedule($station_id, $date);
+            foreach ($station->scd->progs->prog as $prog) {
+                $schedule->add(Program::createFromXml($prog));
+            }
+            $result[$station_id] = $schedule;
+        }
+        return $result;
     }
 }
